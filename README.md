@@ -58,9 +58,27 @@ Run it whenever you want to sync with upstream changes.
 
 ## Adding a new skill
 
+### From an upstream repository
+
 1. Add the skill ID to `ALL_SOURCES` in `bin/update`
 2. Add the corresponding entries to `source_url()`, `source_prefix()`, and `local_prefix()`
 3. Run `bin/update` to pull it in
+
+### Manually (local skill)
+
+1. Create a new directory at the repo root:
+   ```bash
+   mkdir my-skill
+   ```
+2. Add a `SKILL.md` with YAML frontmatter (name, description) and the skill instructions
+3. Add any supporting files (scripts, references, agents configs) inside the same directory
+4. Commit directly to this repo:
+   ```bash
+   git add my-skill
+   git commit -m "Add my-skill"
+   ```
+
+Local skills are not managed by `bin/update` and will never be overwritten by upstream syncs.
 
 ## Structure
 
