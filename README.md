@@ -17,6 +17,7 @@ Skills are discovered automatically by opencode and Codex via `**/*.md` glob pat
 | `ce-doc-review` | [compound-engineering-plugin](https://github.com/EveryInc/compound-engineering-plugin) |
 | `ce-plan` | [compound-engineering-plugin](https://github.com/EveryInc/compound-engineering-plugin) |
 | `ce-work` | [compound-engineering-plugin](https://github.com/EveryInc/compound-engineering-plugin) |
+| `codex-review` | [steipete/agent-scripts](https://github.com/steipete/agent-scripts) |
 | `frontend-design` | [anthropics/skills](https://github.com/anthropics/skills) |
 | `git-commit` | [awesome-copilot](https://github.com/github/awesome-copilot) |
 | `swiftui-liquid-glass` | [Dimillian/Skills](https://github.com/Dimillian/Skills) |
