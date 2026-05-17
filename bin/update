@@ -6,19 +6,19 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 ALL_SOURCES=(
   ce
-  anthropic/frontend-design
-  github/git-commit
-  dimillian/swiftui-liquid-glass
-  dimillian/swiftui-ui-patterns
+  frontend-design
+  git-commit
+  swiftui-liquid-glass
+  swiftui-ui-patterns
 )
 
 source_url() {
   case "$1" in
     ce) echo "https://github.com/EveryInc/compound-engineering-plugin.git" ;;
-    anthropic/frontend-design) echo "https://github.com/anthropics/skills.git" ;;
-    github/git-commit) echo "https://github.com/github/awesome-copilot.git" ;;
-    dimillian/swiftui-liquid-glass) echo "https://github.com/Dimillian/Skills.git" ;;
-    dimillian/swiftui-ui-patterns) echo "https://github.com/Dimillian/Skills.git" ;;
+    frontend-design) echo "https://github.com/anthropics/skills.git" ;;
+    git-commit) echo "https://github.com/github/awesome-copilot.git" ;;
+    swiftui-liquid-glass) echo "https://github.com/Dimillian/Skills.git" ;;
+    swiftui-ui-patterns) echo "https://github.com/Dimillian/Skills.git" ;;
     *) return 1 ;;
   esac
 }
@@ -26,20 +26,20 @@ source_url() {
 source_prefix() {
   case "$1" in
     ce) echo "plugins/compound-engineering/skills" ;;
-    anthropic/frontend-design) echo "skills/frontend-design" ;;
-    github/git-commit) echo "skills/git-commit" ;;
-    dimillian/swiftui-liquid-glass) echo "swiftui-liquid-glass" ;;
-    dimillian/swiftui-ui-patterns) echo "swiftui-ui-patterns" ;;
+    frontend-design) echo "skills/frontend-design" ;;
+    git-commit) echo "skills/git-commit" ;;
+    swiftui-liquid-glass) echo "swiftui-liquid-glass" ;;
+    swiftui-ui-patterns) echo "swiftui-ui-patterns" ;;
   esac
 }
 
 local_prefix() {
   case "$1" in
     ce) echo "ce" ;;
-    anthropic/frontend-design) echo "anthropic/frontend-design" ;;
-    github/git-commit) echo "github/git-commit" ;;
-    dimillian/swiftui-liquid-glass) echo "dimillian/swiftui-liquid-glass" ;;
-    dimillian/swiftui-ui-patterns) echo "dimillian/swiftui-ui-patterns" ;;
+    frontend-design) echo "frontend-design" ;;
+    git-commit) echo "git-commit" ;;
+    swiftui-liquid-glass) echo "swiftui-liquid-glass" ;;
+    swiftui-ui-patterns) echo "swiftui-ui-patterns" ;;
   esac
 }
 
@@ -73,11 +73,15 @@ update_subtree() {
   cd "$TEMP_DIR"
   git subtree split --prefix="$SRC" -b "$BRANCH"
 
-  echo "Pulling $ID into $DST..."
+  echo "Updating $ID into $DST..."
   cd "$original_dir"
   cd "$REPO_ROOT"
   git fetch "$TEMP_DIR" "$BRANCH"
-  git subtree pull --prefix="$DST" "$TEMP_DIR" "$BRANCH" --squash
+  if [ -d "$DST" ]; then
+    git subtree pull --prefix="$DST" "$TEMP_DIR" "$BRANCH" --squash
+  else
+    git subtree add --prefix="$DST" "$TEMP_DIR" "$BRANCH" --squash
+  fi
 
   echo "Done."
   rm -rf "$TEMP_DIR"
