@@ -26,7 +26,7 @@ Skills are discovered automatically by opencode and Codex via `**/*.md` glob pat
 
 | Skill | Description |
 |---|---|
-| `git-commit-and-push` | Creates a branch, commits changes with a conventional commit message, pushes to origin, and opens a pull request |
+| `git-commit-and-push` | Commits changes with a conventional commit message, pulls from origin to reconcile the branch, resolves safe merge conflicts, and pushes to origin |
 
 ## Usage
 
