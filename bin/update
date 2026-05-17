@@ -5,7 +5,13 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 ALL_SOURCES=(
-  ce
+  ce-brainstorm
+  ce-code-review
+  ce-compound
+  ce-dhh-rails-style
+  ce-doc-review
+  ce-plan
+  ce-work
   frontend-design
   git-commit
   swiftui-liquid-glass
@@ -14,18 +20,25 @@ ALL_SOURCES=(
 
 source_url() {
   case "$1" in
-    ce) echo "https://github.com/EveryInc/compound-engineering-plugin.git" ;;
+    ce-brainstorm|ce-code-review|ce-compound|ce-dhh-rails-style|ce-doc-review|ce-plan|ce-work)
+      echo "https://github.com/EveryInc/compound-engineering-plugin.git" ;;
     frontend-design) echo "https://github.com/anthropics/skills.git" ;;
     git-commit) echo "https://github.com/github/awesome-copilot.git" ;;
-    swiftui-liquid-glass) echo "https://github.com/Dimillian/Skills.git" ;;
-    swiftui-ui-patterns) echo "https://github.com/Dimillian/Skills.git" ;;
+    swiftui-liquid-glass|swiftui-ui-patterns)
+      echo "https://github.com/Dimillian/Skills.git" ;;
     *) return 1 ;;
   esac
 }
 
 source_prefix() {
   case "$1" in
-    ce) echo "plugins/compound-engineering/skills" ;;
+    ce-brainstorm) echo "plugins/compound-engineering/skills/ce-brainstorm" ;;
+    ce-code-review) echo "plugins/compound-engineering/skills/ce-code-review" ;;
+    ce-compound) echo "plugins/compound-engineering/skills/ce-compound" ;;
+    ce-dhh-rails-style) echo "plugins/compound-engineering/skills/ce-dhh-rails-style" ;;
+    ce-doc-review) echo "plugins/compound-engineering/skills/ce-doc-review" ;;
+    ce-plan) echo "plugins/compound-engineering/skills/ce-plan" ;;
+    ce-work) echo "plugins/compound-engineering/skills/ce-work" ;;
     frontend-design) echo "skills/frontend-design" ;;
     git-commit) echo "skills/git-commit" ;;
     swiftui-liquid-glass) echo "swiftui-liquid-glass" ;;
@@ -35,7 +48,13 @@ source_prefix() {
 
 local_prefix() {
   case "$1" in
-    ce) echo "ce" ;;
+    ce-brainstorm) echo "ce-brainstorm" ;;
+    ce-code-review) echo "ce-code-review" ;;
+    ce-compound) echo "ce-compound" ;;
+    ce-dhh-rails-style) echo "ce-dhh-rails-style" ;;
+    ce-doc-review) echo "ce-doc-review" ;;
+    ce-plan) echo "ce-plan" ;;
+    ce-work) echo "ce-work" ;;
     frontend-design) echo "frontend-design" ;;
     git-commit) echo "git-commit" ;;
     swiftui-liquid-glass) echo "swiftui-liquid-glass" ;;
