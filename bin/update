@@ -1,0 +1,90 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+source_url() {
+  case "$1" in
+    ce) echo "https://github.com/EveryInc/compound-engineering-plugin.git" ;;
+    anthropic/frontend-design) echo "https://github.com/anthropics/skills.git" ;;
+    *) return 1 ;;
+  esac
+}
+
+source_prefix() {
+  case "$1" in
+    ce) echo "plugins/compound-engineering/skills" ;;
+    anthropic/frontend-design) echo "skills/frontend-design" ;;
+  esac
+}
+
+local_prefix() {
+  case "$1" in
+    ce) echo "ce" ;;
+    anthropic/frontend-design) echo "anthropic/frontend-design" ;;
+  esac
+}
+
+update_subtree() {
+  local ID="$1"
+  local REPO_URL="$2"
+  local SRC="$3"
+  local DST="$4"
+
+  local TEMP_DIR BRANCH
+  TEMP_DIR=$(mktemp -d)
+  BRANCH="subtree-$(echo "$ID" | tr '/' '-')"
+  trap 'rm -rf "$TEMP_DIR"' EXIT
+
+  cd "$REPO_ROOT"
+  if ! git diff --quiet -- "$DST" 2>/dev/null || \
+     ! git diff --cached --quiet -- "$DST" 2>/dev/null; then
+    echo "Error: $DST has uncommitted changes. Commit or stash them first." >&2
+    exit 1
+  fi
+
+  echo "Cloning $ID..."
+  git clone --depth=1 "$REPO_URL" "$TEMP_DIR"
+
+  echo "Splitting $ID subtree..."
+  local original_dir="$PWD"
+  cd "$TEMP_DIR"
+  git subtree split --prefix="$SRC" -b "$BRANCH"
+
+  echo "Pulling $ID into $DST..."
+  cd "$original_dir"
+  cd "$REPO_ROOT"
+  git fetch "$TEMP_DIR" "$BRANCH"
+  git subtree pull --prefix="$DST" "$TEMP_DIR" "$BRANCH" --squash
+
+  echo "Done."
+  rm -rf "$TEMP_DIR"
+  trap - EXIT
+}
+
+usage() {
+  echo "Usage: $0 <source>"
+  echo ""
+  echo "Available sources:"
+  echo "  ce"
+  echo "  anthropic/frontend-design"
+  exit 1
+}
+
+main() {
+  local target="${1:-}"
+  local url src dst
+
+  if [ -z "$target" ]; then
+    usage
+  fi
+
+  url=$(source_url "$target" 2>/dev/null) || { echo "Unknown source: $target" >&2; usage; }
+  src=$(source_prefix "$target")
+  dst=$(local_prefix "$target")
+
+  update_subtree "$target" "$url" "$src" "$dst"
+}
+
+main "$@"
