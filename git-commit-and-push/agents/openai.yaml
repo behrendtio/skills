@@ -1,0 +1,4 @@
+interface:
+  display_name: "Git Commit and Push"
+  short_description: "Conventional commit, pull from origin, then push."
+  default_prompt: "Commit my current changes with conventional commits, pull the current branch from origin and resolve clear conflicts, then push the current branch to origin."
