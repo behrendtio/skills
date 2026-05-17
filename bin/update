@@ -8,6 +8,7 @@ source_url() {
   case "$1" in
     ce) echo "https://github.com/EveryInc/compound-engineering-plugin.git" ;;
     anthropic/frontend-design) echo "https://github.com/anthropics/skills.git" ;;
+    github/git-commit) echo "https://github.com/github/awesome-copilot.git" ;;
     *) return 1 ;;
   esac
 }
@@ -16,6 +17,7 @@ source_prefix() {
   case "$1" in
     ce) echo "plugins/compound-engineering/skills" ;;
     anthropic/frontend-design) echo "skills/frontend-design" ;;
+    github/git-commit) echo "skills/git-commit" ;;
   esac
 }
 
@@ -23,6 +25,7 @@ local_prefix() {
   case "$1" in
     ce) echo "ce" ;;
     anthropic/frontend-design) echo "anthropic/frontend-design" ;;
+    github/git-commit) echo "github/git-commit" ;;
   esac
 }
 
@@ -69,6 +72,7 @@ usage() {
   echo "Available sources:"
   echo "  ce"
   echo "  anthropic/frontend-design"
+  echo "  github/git-commit"
   exit 1
 }
 
