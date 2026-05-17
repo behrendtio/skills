@@ -4,130 +4,287 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-ALL_SOURCES=(
-  ce-brainstorm
-  ce-code-review
-  ce-compound
-  ce-dhh-rails-style
-  ce-doc-review
-  ce-plan
-  ce-work
-  codex-review
-  frontend-design
-  git-commit
-  swiftui-liquid-glass
-  swiftui-ui-patterns
+# Format: id|repo_url|source_prefix|local_prefix
+SOURCES=(
+  "ce-brainstorm|https://github.com/EveryInc/compound-engineering-plugin.git|plugins/compound-engineering/skills/ce-brainstorm|ce-brainstorm"
+  "ce-code-review|https://github.com/EveryInc/compound-engineering-plugin.git|plugins/compound-engineering/skills/ce-code-review|ce-code-review"
+  "ce-compound|https://github.com/EveryInc/compound-engineering-plugin.git|plugins/compound-engineering/skills/ce-compound|ce-compound"
+  "ce-dhh-rails-style|https://github.com/EveryInc/compound-engineering-plugin.git|plugins/compound-engineering/skills/ce-dhh-rails-style|ce-dhh-rails-style"
+  "ce-doc-review|https://github.com/EveryInc/compound-engineering-plugin.git|plugins/compound-engineering/skills/ce-doc-review|ce-doc-review"
+  "ce-plan|https://github.com/EveryInc/compound-engineering-plugin.git|plugins/compound-engineering/skills/ce-plan|ce-plan"
+  "ce-work|https://github.com/EveryInc/compound-engineering-plugin.git|plugins/compound-engineering/skills/ce-work|ce-work"
+  "codex-review|https://github.com/steipete/agent-scripts.git|skills/codex-review|codex-review"
+  "frontend-design|https://github.com/anthropics/skills.git|skills/frontend-design|frontend-design"
+  "git-commit|https://github.com/github/awesome-copilot.git|skills/git-commit|git-commit"
+  "swiftui-liquid-glass|https://github.com/Dimillian/Skills.git|swiftui-liquid-glass|swiftui-liquid-glass"
+  "swiftui-ui-patterns|https://github.com/Dimillian/Skills.git|swiftui-ui-patterns|swiftui-ui-patterns"
 )
 
-source_url() {
-  case "$1" in
-    ce-brainstorm|ce-code-review|ce-compound|ce-dhh-rails-style|ce-doc-review|ce-plan|ce-work)
-      echo "https://github.com/EveryInc/compound-engineering-plugin.git" ;;
-    codex-review) echo "https://github.com/steipete/agent-scripts.git" ;;
-    frontend-design) echo "https://github.com/anthropics/skills.git" ;;
-    git-commit) echo "https://github.com/github/awesome-copilot.git" ;;
-    swiftui-liquid-glass|swiftui-ui-patterns)
-      echo "https://github.com/Dimillian/Skills.git" ;;
-    *) return 1 ;;
-  esac
+DRY_RUN=0
+LIST_ONLY=0
+REQUESTED_IDS=()
+SELECTED_SOURCES=()
+
+usage() {
+  cat <<'USAGE'
+Usage: bin/update [--dry-run] [--list] [skill ...]
+
+Options:
+  --dry-run   Show what would be updated without cloning or changing git state
+  --list      List configured upstream sources
+  -h, --help  Show this help
+
+With no skill arguments, all upstream skills are updated.
+USAGE
 }
 
-source_prefix() {
-  case "$1" in
-    ce-brainstorm) echo "plugins/compound-engineering/skills/ce-brainstorm" ;;
-    ce-code-review) echo "plugins/compound-engineering/skills/ce-code-review" ;;
-    ce-compound) echo "plugins/compound-engineering/skills/ce-compound" ;;
-    ce-dhh-rails-style) echo "plugins/compound-engineering/skills/ce-dhh-rails-style" ;;
-    ce-doc-review) echo "plugins/compound-engineering/skills/ce-doc-review" ;;
-    ce-plan) echo "plugins/compound-engineering/skills/ce-plan" ;;
-    ce-work) echo "plugins/compound-engineering/skills/ce-work" ;;
-    codex-review) echo "skills/codex-review" ;;
-    frontend-design) echo "skills/frontend-design" ;;
-    git-commit) echo "skills/git-commit" ;;
-    swiftui-liquid-glass) echo "swiftui-liquid-glass" ;;
-    swiftui-ui-patterns) echo "swiftui-ui-patterns" ;;
-  esac
+die() {
+  echo "Error: $*" >&2
+  exit 1
 }
 
-local_prefix() {
-  case "$1" in
-    ce-brainstorm) echo "ce-brainstorm" ;;
-    ce-code-review) echo "ce-code-review" ;;
-    ce-compound) echo "ce-compound" ;;
-    ce-dhh-rails-style) echo "ce-dhh-rails-style" ;;
-    ce-doc-review) echo "ce-doc-review" ;;
-    ce-plan) echo "ce-plan" ;;
-    ce-work) echo "ce-work" ;;
-    codex-review) echo "codex-review" ;;
-    frontend-design) echo "frontend-design" ;;
-    git-commit) echo "git-commit" ;;
-    swiftui-liquid-glass) echo "swiftui-liquid-glass" ;;
-    swiftui-ui-patterns) echo "swiftui-ui-patterns" ;;
-  esac
+split_source_entry() {
+  IFS='|' read -r SOURCE_ID SOURCE_REPO_URL SOURCE_PREFIX LOCAL_PREFIX <<EOF
+$1
+EOF
 }
 
-update_subtree() {
-  local ID="$1"
-  local REPO_URL="$2"
-  local SRC="$3"
-  local DST="$4"
+source_entry_for_id() {
+  local wanted_id="$1"
+  local entry
 
-  local TEMP_DIR BRANCH original_dir
-  TEMP_DIR=$(mktemp -d)
-  BRANCH="subtree-$(echo "$ID" | tr '/' '-')"
+  for entry in "${SOURCES[@]}"; do
+    split_source_entry "$entry"
+    if [ "$SOURCE_ID" = "$wanted_id" ]; then
+      echo "$entry"
+      return 0
+    fi
+  done
 
+  return 1
+}
+
+parse_args() {
+  local arg
+
+  while [ "$#" -gt 0 ]; do
+    arg="$1"
+    shift
+
+    case "$arg" in
+      --dry-run)
+        DRY_RUN=1
+        ;;
+      --list)
+        LIST_ONLY=1
+        ;;
+      -h|--help)
+        usage
+        exit 0
+        ;;
+      --)
+        while [ "$#" -gt 0 ]; do
+          REQUESTED_IDS+=("$1")
+          shift
+        done
+        ;;
+      -*)
+        die "unknown option: $arg"
+        ;;
+      *)
+        REQUESTED_IDS+=("$arg")
+        ;;
+    esac
+  done
+}
+
+validate_sources() {
+  local entry id repo_url source_prefix local_prefix
+  local seen_ids="|"
+  local seen_local_prefixes="|"
+
+  for entry in "${SOURCES[@]}"; do
+    IFS='|' read -r id repo_url source_prefix local_prefix <<EOF
+$entry
+EOF
+
+    if [ -z "$id" ] || [ -z "$repo_url" ] || [ -z "$source_prefix" ] || [ -z "$local_prefix" ]; then
+      die "invalid source entry: $entry"
+    fi
+
+    case "$seen_ids" in
+      *"|$id|"*) die "duplicate source id: $id" ;;
+    esac
+    seen_ids="${seen_ids}${id}|"
+
+    case "$seen_local_prefixes" in
+      *"|$local_prefix|"*) die "duplicate local prefix: $local_prefix" ;;
+    esac
+    seen_local_prefixes="${seen_local_prefixes}${local_prefix}|"
+  done
+}
+
+select_sources() {
+  local requested_id entry
+  local selected_ids="|"
+
+  SELECTED_SOURCES=()
+
+  if [ "${#REQUESTED_IDS[@]}" -eq 0 ]; then
+    SELECTED_SOURCES=("${SOURCES[@]}")
+    return
+  fi
+
+  for requested_id in "${REQUESTED_IDS[@]}"; do
+    case "$selected_ids" in
+      *"|$requested_id|"*) continue ;;
+    esac
+
+    if ! entry=$(source_entry_for_id "$requested_id"); then
+      die "unknown source id: $requested_id"
+    fi
+
+    SELECTED_SOURCES+=("$entry")
+    selected_ids="${selected_ids}${requested_id}|"
+  done
+}
+
+list_sources() {
+  local entry
+
+  printf "%-24s %-58s %-48s %s\n" "ID" "REPO" "SOURCE_PREFIX" "LOCAL_PREFIX"
+  for entry in "${SELECTED_SOURCES[@]}"; do
+    split_source_entry "$entry"
+    printf "%-24s %-58s %-48s %s\n" "$SOURCE_ID" "$SOURCE_REPO_URL" "$SOURCE_PREFIX" "$LOCAL_PREFIX"
+  done
+}
+
+print_dry_run() {
+  local entry
+
+  for entry in "${SELECTED_SOURCES[@]}"; do
+    split_source_entry "$entry"
+    echo "$SOURCE_ID: $SOURCE_REPO_URL $SOURCE_PREFIX -> $LOCAL_PREFIX"
+  done
+}
+
+require_clean_worktree() {
   cd "$REPO_ROOT"
+
   if ! git diff --quiet 2>/dev/null || \
      ! git diff --cached --quiet 2>/dev/null; then
-    echo "Error: working tree has uncommitted changes. Commit or stash them first." >&2
-    rm -rf "$TEMP_DIR"
-    return 1
+    die "working tree has uncommitted changes. Commit or stash them first."
   fi
-
-  echo "Cloning $ID..."
-  if ! git clone --depth=1 "$REPO_URL" "$TEMP_DIR"; then
-    echo "Error: clone failed for $ID" >&2
-    rm -rf "$TEMP_DIR"
-    return 1
-  fi
-
-  echo "Splitting $ID subtree..."
-  original_dir="$PWD"
-  cd "$TEMP_DIR"
-  git subtree split --prefix="$SRC" -b "$BRANCH"
-
-  echo "Updating $ID into $DST..."
-  cd "$original_dir"
-  cd "$REPO_ROOT"
-  git fetch "$TEMP_DIR" "$BRANCH"
-  if [ -d "$DST" ]; then
-    git subtree pull --prefix="$DST" "$TEMP_DIR" "$BRANCH" --squash
-  else
-    git subtree add --prefix="$DST" "$TEMP_DIR" "$BRANCH" --squash
-  fi
-
-  echo "Done."
-  rm -rf "$TEMP_DIR"
 }
 
-main() {
-  local errors=0
-  local url src dst
+entry_repo_url() {
+  split_source_entry "$1"
+  echo "$SOURCE_REPO_URL"
+}
 
-  for id in "${ALL_SOURCES[@]}"; do
-    echo "=== $id ==="
-    url=$(source_url "$id")
-    src=$(source_prefix "$id")
-    dst=$(local_prefix "$id")
-    update_subtree "$id" "$url" "$src" "$dst" || { echo "FAILED: $id" >&2; ((errors++)); }
+update_source_from_clone() {
+  local temp_dir="$1"
+  local id="$2"
+  local src="$3"
+  local dst="$4"
+  local branch
+
+  branch="subtree-$(echo "$id" | tr '/' '-')"
+
+  if [ ! -d "$temp_dir/$src" ]; then
+    echo "Error: source prefix does not exist for $id: $src" >&2
+    return 1
+  fi
+
+  echo "=== $id ==="
+  echo "Splitting $src..."
+  (
+    cd "$temp_dir"
+    git subtree split --prefix="$src" -b "$branch"
+  ) || return 1
+
+  echo "Updating $dst..."
+  (
+    cd "$REPO_ROOT"
+    git fetch "$temp_dir" "$branch"
+    if [ -d "$dst" ]; then
+      git subtree pull --prefix="$dst" "$temp_dir" "$branch" --squash
+    else
+      git subtree add --prefix="$dst" "$temp_dir" "$branch" --squash
+    fi
+  ) || return 1
+
+  echo "Done."
+}
+
+update_repo_sources() (
+  local repo_url="$1"
+  local temp_dir entry errors
+
+  errors=0
+  temp_dir=$(mktemp -d) || return 1
+  trap 'rm -rf "$temp_dir"' EXIT
+
+  echo "Cloning $repo_url..."
+  if ! git clone --depth=1 "$repo_url" "$temp_dir"; then
+    echo "Error: clone failed for $repo_url" >&2
+    return 1
+  fi
+
+  for entry in "${SELECTED_SOURCES[@]}"; do
+    split_source_entry "$entry"
+    if [ "$SOURCE_REPO_URL" != "$repo_url" ]; then
+      continue
+    fi
+
+    if ! update_source_from_clone "$temp_dir" "$SOURCE_ID" "$SOURCE_PREFIX" "$LOCAL_PREFIX"; then
+      echo "FAILED: $SOURCE_ID" >&2
+      errors=$((errors + 1))
+    fi
     echo ""
   done
 
+  return "$errors"
+)
+
+main() {
+  local entry repo_url errors processed_repos
+  errors=0
+  processed_repos="|"
+
+  parse_args "$@"
+  validate_sources
+  select_sources
+
+  if [ "$LIST_ONLY" -eq 1 ]; then
+    list_sources
+    exit 0
+  fi
+
+  if [ "$DRY_RUN" -eq 1 ]; then
+    print_dry_run
+    exit 0
+  fi
+
+  require_clean_worktree
+
+  for entry in "${SELECTED_SOURCES[@]}"; do
+    repo_url=$(entry_repo_url "$entry")
+    case "$processed_repos" in
+      *"|$repo_url|"*) continue ;;
+    esac
+
+    if ! update_repo_sources "$repo_url"; then
+      errors=$((errors + 1))
+    fi
+    processed_repos="${processed_repos}${repo_url}|"
+  done
+
   if [ "$errors" -gt 0 ]; then
-    echo "$errors source(s) failed." >&2
+    echo "$errors source group(s) failed." >&2
     exit 1
   fi
   echo "All sources updated."
 }
 
-main
+main "$@"

@@ -62,9 +62,9 @@ Run it whenever you want to sync with upstream changes.
 
 ### From an upstream repository
 
-1. Add the skill ID to `ALL_SOURCES` in `bin/update`
-2. Add the corresponding entries to `source_url()`, `source_prefix()`, and `local_prefix()`
-3. Run `bin/update` to pull it in
+1. Add one entry to `SOURCES` in `bin/update`
+2. Run `bin/update --dry-run <skill-id>` to verify the configured source
+3. Run `bin/update <skill-id>` to pull it in
 
 ### Manually (local skill)
 
