@@ -24,9 +24,9 @@ Skills are discovered automatically by opencode and Codex via `**/*.md` glob pat
 
 ### Local skills
 
-| Skill | Source |
+| Skill | Description |
 |---|---|
-| `git-commit-and-push` | Copied from local `~/.codex/skills/` |
+| `git-commit-and-push` | Creates a branch, commits changes with a conventional commit message, pushes to origin, and opens a pull request |
 
 ## Usage
 
