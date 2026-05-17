@@ -4,11 +4,21 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
+ALL_SOURCES=(
+  ce
+  anthropic/frontend-design
+  github/git-commit
+  dimillian/swiftui-liquid-glass
+  dimillian/swiftui-ui-patterns
+)
+
 source_url() {
   case "$1" in
     ce) echo "https://github.com/EveryInc/compound-engineering-plugin.git" ;;
     anthropic/frontend-design) echo "https://github.com/anthropics/skills.git" ;;
     github/git-commit) echo "https://github.com/github/awesome-copilot.git" ;;
+    dimillian/swiftui-liquid-glass) echo "https://github.com/Dimillian/Skills.git" ;;
+    dimillian/swiftui-ui-patterns) echo "https://github.com/Dimillian/Skills.git" ;;
     *) return 1 ;;
   esac
 }
@@ -18,6 +28,8 @@ source_prefix() {
     ce) echo "plugins/compound-engineering/skills" ;;
     anthropic/frontend-design) echo "skills/frontend-design" ;;
     github/git-commit) echo "skills/git-commit" ;;
+    dimillian/swiftui-liquid-glass) echo "swiftui-liquid-glass" ;;
+    dimillian/swiftui-ui-patterns) echo "swiftui-ui-patterns" ;;
   esac
 }
 
@@ -26,6 +38,8 @@ local_prefix() {
     ce) echo "ce" ;;
     anthropic/frontend-design) echo "anthropic/frontend-design" ;;
     github/git-commit) echo "github/git-commit" ;;
+    dimillian/swiftui-liquid-glass) echo "dimillian/swiftui-liquid-glass" ;;
+    dimillian/swiftui-ui-patterns) echo "dimillian/swiftui-ui-patterns" ;;
   esac
 }
 
@@ -41,9 +55,9 @@ update_subtree() {
   trap 'rm -rf "$TEMP_DIR"' EXIT
 
   cd "$REPO_ROOT"
-  if ! git diff --quiet -- "$DST" 2>/dev/null || \
-     ! git diff --cached --quiet -- "$DST" 2>/dev/null; then
-    echo "Error: $DST has uncommitted changes. Commit or stash them first." >&2
+  if ! git diff --quiet 2>/dev/null || \
+     ! git diff --cached --quiet 2>/dev/null; then
+    echo "Error: working tree has uncommitted changes. Commit or stash them first." >&2
     exit 1
   fi
 
@@ -66,29 +80,47 @@ update_subtree() {
   trap - EXIT
 }
 
+update_one() {
+  local target="$1"
+  local url src dst
+
+  url=$(source_url "$target" 2>/dev/null) || { echo "Unknown source: $target" >&2; return 1; }
+  src=$(source_prefix "$target")
+  dst=$(local_prefix "$target")
+
+  update_subtree "$target" "$url" "$src" "$dst"
+}
+
 usage() {
-  echo "Usage: $0 <source>"
+  echo "Usage: $0 [source]"
   echo ""
   echo "Available sources:"
-  echo "  ce"
-  echo "  anthropic/frontend-design"
-  echo "  github/git-commit"
+  for s in "${ALL_SOURCES[@]}"; do
+    echo "  $s"
+  done
+  echo ""
+  echo "With no arguments, updates all sources."
   exit 1
 }
 
 main() {
   local target="${1:-}"
-  local url src dst
 
-  if [ -z "$target" ]; then
-    usage
+  if [ -n "$target" ]; then
+    update_one "$target"
+  else
+    local errors=0
+    for s in "${ALL_SOURCES[@]}"; do
+      echo "=== $s ==="
+      update_one "$s" || { echo "FAILED: $s" >&2; ((errors++)); }
+      echo ""
+    done
+    if [ "$errors" -gt 0 ]; then
+      echo "$errors source(s) failed." >&2
+      exit 1
+    fi
+    echo "All sources updated."
   fi
-
-  url=$(source_url "$target" 2>/dev/null) || { echo "Unknown source: $target" >&2; usage; }
-  src=$(source_prefix "$target")
-  dst=$(local_prefix "$target")
-
-  update_subtree "$target" "$url" "$src" "$dst"
 }
 
 main "$@"
