@@ -1,0 +1,14 @@
+# id	repo	source	local
+ce-brainstorm	https://github.com/EveryInc/compound-engineering-plugin.git	plugins/compound-engineering/skills/ce-brainstorm	ce-brainstorm
+ce-code-review	https://github.com/EveryInc/compound-engineering-plugin.git	plugins/compound-engineering/skills/ce-code-review	ce-code-review
+ce-compound	https://github.com/EveryInc/compound-engineering-plugin.git	plugins/compound-engineering/skills/ce-compound	ce-compound
+ce-dhh-rails-style	https://github.com/EveryInc/compound-engineering-plugin.git	plugins/compound-engineering/skills/ce-dhh-rails-style	ce-dhh-rails-style
+ce-doc-review	https://github.com/EveryInc/compound-engineering-plugin.git	plugins/compound-engineering/skills/ce-doc-review	ce-doc-review
+ce-plan	https://github.com/EveryInc/compound-engineering-plugin.git	plugins/compound-engineering/skills/ce-plan	ce-plan
+ce-debug	https://github.com/EveryInc/compound-engineering-plugin.git	plugins/compound-engineering/skills/ce-debug	ce-debug
+ce-work	https://github.com/EveryInc/compound-engineering-plugin.git	plugins/compound-engineering/skills/ce-work	ce-work
+autoreview	https://github.com/openclaw/agent-skills.git	skills/autoreview	autoreview
+frontend-design	https://github.com/anthropics/skills.git	skills/frontend-design	frontend-design
+git-commit	https://github.com/github/awesome-copilot.git	skills/git-commit	git-commit
+swiftui-liquid-glass	https://github.com/Dimillian/Skills.git	swiftui-liquid-glass	swiftui-liquid-glass
+swiftui-ui-patterns	https://github.com/Dimillian/Skills.git	swiftui-ui-patterns	swiftui-ui-patterns

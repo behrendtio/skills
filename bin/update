@@ -3,170 +3,11 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-
-# Format: id|repo_url|source_prefix|local_prefix
-SOURCES=(
-  "ce-brainstorm|https://github.com/EveryInc/compound-engineering-plugin.git|plugins/compound-engineering/skills/ce-brainstorm|ce-brainstorm"
-  "ce-code-review|https://github.com/EveryInc/compound-engineering-plugin.git|plugins/compound-engineering/skills/ce-code-review|ce-code-review"
-  "ce-compound|https://github.com/EveryInc/compound-engineering-plugin.git|plugins/compound-engineering/skills/ce-compound|ce-compound"
-  "ce-dhh-rails-style|https://github.com/EveryInc/compound-engineering-plugin.git|plugins/compound-engineering/skills/ce-dhh-rails-style|ce-dhh-rails-style"
-  "ce-doc-review|https://github.com/EveryInc/compound-engineering-plugin.git|plugins/compound-engineering/skills/ce-doc-review|ce-doc-review"
-  "ce-plan|https://github.com/EveryInc/compound-engineering-plugin.git|plugins/compound-engineering/skills/ce-plan|ce-plan"
-  "ce-debug|https://github.com/EveryInc/compound-engineering-plugin.git|plugins/compound-engineering/skills/ce-debug|ce-debug"
-  "ce-work|https://github.com/EveryInc/compound-engineering-plugin.git|plugins/compound-engineering/skills/ce-work|ce-work"
-  "codex-review|https://github.com/steipete/agent-scripts.git|skills/codex-review|codex-review"
-  "frontend-design|https://github.com/anthropics/skills.git|skills/frontend-design|frontend-design"
-  "git-commit|https://github.com/github/awesome-copilot.git|skills/git-commit|git-commit"
-  "swiftui-liquid-glass|https://github.com/Dimillian/Skills.git|swiftui-liquid-glass|swiftui-liquid-glass"
-  "swiftui-ui-patterns|https://github.com/Dimillian/Skills.git|swiftui-ui-patterns|swiftui-ui-patterns"
-)
-
-DRY_RUN=0
-LIST_ONLY=0
-REQUESTED_IDS=()
-SELECTED_SOURCES=()
-
-usage() {
-  cat <<'USAGE'
-Usage: bin/update [--dry-run] [--list] [skill ...]
-
-Options:
-  --dry-run   Show what would be updated without cloning or changing git state
-  --list      List configured upstream sources
-  -h, --help  Show this help
-
-With no skill arguments, all upstream skills are updated.
-USAGE
-}
+SOURCES_FILE="${SKILL_UPDATE_SOURCES:-$REPO_ROOT/sources.tsv}"
 
 die() {
   echo "Error: $*" >&2
   exit 1
-}
-
-split_source_entry() {
-  IFS='|' read -r SOURCE_ID SOURCE_REPO_URL SOURCE_PREFIX LOCAL_PREFIX <<EOF
-$1
-EOF
-}
-
-source_entry_for_id() {
-  local wanted_id="$1"
-  local entry
-
-  for entry in "${SOURCES[@]}"; do
-    split_source_entry "$entry"
-    if [ "$SOURCE_ID" = "$wanted_id" ]; then
-      echo "$entry"
-      return 0
-    fi
-  done
-
-  return 1
-}
-
-parse_args() {
-  local arg
-
-  while [ "$#" -gt 0 ]; do
-    arg="$1"
-    shift
-
-    case "$arg" in
-      --dry-run)
-        DRY_RUN=1
-        ;;
-      --list)
-        LIST_ONLY=1
-        ;;
-      -h|--help)
-        usage
-        exit 0
-        ;;
-      --)
-        while [ "$#" -gt 0 ]; do
-          REQUESTED_IDS+=("$1")
-          shift
-        done
-        ;;
-      -*)
-        die "unknown option: $arg"
-        ;;
-      *)
-        REQUESTED_IDS+=("$arg")
-        ;;
-    esac
-  done
-}
-
-validate_sources() {
-  local entry id repo_url source_prefix local_prefix
-  local seen_ids="|"
-  local seen_local_prefixes="|"
-
-  for entry in "${SOURCES[@]}"; do
-    IFS='|' read -r id repo_url source_prefix local_prefix <<EOF
-$entry
-EOF
-
-    if [ -z "$id" ] || [ -z "$repo_url" ] || [ -z "$source_prefix" ] || [ -z "$local_prefix" ]; then
-      die "invalid source entry: $entry"
-    fi
-
-    case "$seen_ids" in
-      *"|$id|"*) die "duplicate source id: $id" ;;
-    esac
-    seen_ids="${seen_ids}${id}|"
-
-    case "$seen_local_prefixes" in
-      *"|$local_prefix|"*) die "duplicate local prefix: $local_prefix" ;;
-    esac
-    seen_local_prefixes="${seen_local_prefixes}${local_prefix}|"
-  done
-}
-
-select_sources() {
-  local requested_id entry
-  local selected_ids="|"
-
-  SELECTED_SOURCES=()
-
-  if [ "${#REQUESTED_IDS[@]}" -eq 0 ]; then
-    SELECTED_SOURCES=("${SOURCES[@]}")
-    return
-  fi
-
-  for requested_id in "${REQUESTED_IDS[@]}"; do
-    case "$selected_ids" in
-      *"|$requested_id|"*) continue ;;
-    esac
-
-    if ! entry=$(source_entry_for_id "$requested_id"); then
-      die "unknown source id: $requested_id"
-    fi
-
-    SELECTED_SOURCES+=("$entry")
-    selected_ids="${selected_ids}${requested_id}|"
-  done
-}
-
-list_sources() {
-  local entry
-
-  printf "%-24s %-58s %-48s %s\n" "ID" "REPO" "SOURCE_PREFIX" "LOCAL_PREFIX"
-  for entry in "${SELECTED_SOURCES[@]}"; do
-    split_source_entry "$entry"
-    printf "%-24s %-58s %-48s %s\n" "$SOURCE_ID" "$SOURCE_REPO_URL" "$SOURCE_PREFIX" "$LOCAL_PREFIX"
-  done
-}
-
-print_dry_run() {
-  local entry
-
-  for entry in "${SELECTED_SOURCES[@]}"; do
-    split_source_entry "$entry"
-    echo "$SOURCE_ID: $SOURCE_REPO_URL $SOURCE_PREFIX -> $LOCAL_PREFIX"
-  done
 }
 
 require_clean_worktree() {
@@ -178,114 +19,141 @@ require_clean_worktree() {
   fi
 }
 
-entry_repo_url() {
-  split_source_entry "$1"
-  echo "$SOURCE_REPO_URL"
-}
+read_sources() {
+  local line
+  local count
+  count=0
 
-update_source_from_clone() {
-  local temp_dir="$1"
-  local id="$2"
-  local src="$3"
-  local dst="$4"
-  local branch
+  while IFS=$'\t' read -r id repo source local || [ -n "$id" ]; do
+    [[ -z "$id" || "$id" =~ ^[[:space:]]*# ]] && continue
 
-  branch="subtree-$(echo "$id" | tr '/' '-')"
-
-  if [ ! -d "$temp_dir/$src" ]; then
-    echo "Error: source prefix does not exist for $id: $src" >&2
-    return 1
-  fi
-
-  echo "=== $id ==="
-  echo "Splitting $src..."
-  (
-    cd "$temp_dir"
-    git subtree split --prefix="$src" -b "$branch"
-  ) || return 1
-
-  echo "Updating $dst..."
-  (
-    cd "$REPO_ROOT"
-    git fetch "$temp_dir" "$branch"
-    if [ -d "$dst" ]; then
-      git subtree pull --prefix="$dst" "$temp_dir" "$branch" --squash
-    else
-      git subtree add --prefix="$dst" "$temp_dir" "$branch" --squash
+    if [ -z "$repo" ] || [ -z "$source" ] || [ -z "$local" ]; then
+      die "malformed row at line $((count + 1)) in $SOURCES_FILE"
     fi
-  ) || return 1
 
-  echo "Done."
+    echo "$id"$'\t'"$repo"$'\t'"$source"$'\t'"$local"
+    count=$((count + 1))
+  done < "$SOURCES_FILE"
 }
 
-update_repo_sources() (
-  local repo_url="$1"
-  local temp_dir entry errors
+validate_rows() {
+  local rows
+  local seen_ids
+  local seen_locals
+  rows="$1"
+  seen_ids="|"
+  seen_locals="|"
 
+  while IFS=$'\t' read -r id repo source local; do
+    case "$seen_ids" in
+      *"|$id|"*) die "duplicate id: $id" ;;
+    esac
+    seen_ids="${seen_ids}${id}|"
+
+    case "$seen_locals" in
+      *"|$local|"*) die "duplicate local path: $local" ;;
+    esac
+    seen_locals="${seen_locals}${local}|"
+  done <<< "$rows"
+}
+
+unique_repos() {
+  local rows
+  local seen
+  rows="$1"
+  seen="|"
+
+  while IFS=$'\t' read -r id repo source local; do
+    case "$seen" in
+      *"|$repo|"*) continue ;;
+    esac
+    echo "$repo"
+    seen="${seen}${repo}|"
+  done <<< "$rows"
+}
+
+rows_for_repo() {
+  local repo
+  local rows
+  repo="$1"
+  rows="$2"
+
+  while IFS=$'\t' read -r id row_repo source local; do
+    if [ "$row_repo" = "$repo" ]; then
+      echo "$id"$'\t'"$source"$'\t'"$local"
+    fi
+  done <<< "$rows"
+}
+
+update_repo() {
+  local repo
+  local rows
+  local temp_dir
+  local errors
+  repo="$1"
+  rows="$2"
   errors=0
-  temp_dir=$(mktemp -d) || return 1
-  trap 'rm -rf "$temp_dir"' EXIT
 
-  echo "Cloning $repo_url..."
-  if ! git clone --depth=1 "$repo_url" "$temp_dir"; then
-    echo "Error: clone failed for $repo_url" >&2
+  temp_dir=$(mktemp -d) || return 1
+
+  echo "Cloning $repo..."
+  if ! git clone --depth=1 "$repo" "$temp_dir"; then
+    echo "Error: clone failed for $repo" >&2
+    rm -rf "$temp_dir"
     return 1
   fi
 
-  for entry in "${SELECTED_SOURCES[@]}"; do
-    split_source_entry "$entry"
-    if [ "$SOURCE_REPO_URL" != "$repo_url" ]; then
+  while IFS=$'\t' read -r id source local; do
+    if [ ! -d "$temp_dir/$source" ]; then
+      echo "Error: source path not found for $id: $source" >&2
+      errors=$((errors + 1))
       continue
     fi
 
-    if ! update_source_from_clone "$temp_dir" "$SOURCE_ID" "$SOURCE_PREFIX" "$LOCAL_PREFIX"; then
-      echo "FAILED: $SOURCE_ID" >&2
-      errors=$((errors + 1))
-    fi
-    echo ""
-  done
+    echo "=== $id ==="
+    mkdir -p "$REPO_ROOT/$local"
+    rsync -a --delete --exclude='.git' "$temp_dir/$source/" "$REPO_ROOT/$local/"
+    echo "Done."
+  done <<< "$(rows_for_repo "$repo" "$rows")"
 
+  rm -rf "$temp_dir"
   return "$errors"
-)
+}
 
 main() {
-  local entry repo_url errors processed_repos
-  errors=0
-  processed_repos="|"
+  local rows
+  local repo
+  local local_paths
+  local local_paths_line
 
-  parse_args "$@"
-  validate_sources
-  select_sources
-
-  if [ "$LIST_ONLY" -eq 1 ]; then
-    list_sources
-    exit 0
-  fi
-
-  if [ "$DRY_RUN" -eq 1 ]; then
-    print_dry_run
-    exit 0
-  fi
+  [ -f "$SOURCES_FILE" ] || die "config file not found: $SOURCES_FILE"
 
   require_clean_worktree
 
-  for entry in "${SELECTED_SOURCES[@]}"; do
-    repo_url=$(entry_repo_url "$entry")
-    case "$processed_repos" in
-      *"|$repo_url|"*) continue ;;
-    esac
+  rows=$(read_sources) || die "failed to read $SOURCES_FILE"
+  [ -n "$rows" ] || die "no sources found in $SOURCES_FILE"
 
-    if ! update_repo_sources "$repo_url"; then
-      errors=$((errors + 1))
+  validate_rows "$rows"
+
+  while IFS= read -r repo; do
+    if ! update_repo "$repo" "$rows"; then
+      echo "FAILED: $repo" >&2
     fi
-    processed_repos="${processed_repos}${repo_url}|"
-  done
+  done <<< "$(unique_repos "$rows")"
 
-  if [ "$errors" -gt 0 ]; then
-    echo "$errors source group(s) failed." >&2
-    exit 1
+  cd "$REPO_ROOT"
+
+  local_paths=$(while IFS=$'\t' read -r _ _ _ local; do echo "$local"; done <<< "$rows")
+  local_paths_line=$(printf '%s\n' $local_paths | paste -sd ' ' -)
+
+  # shellcheck disable=SC2086
+  if [ -n "$(git status --porcelain -- $local_paths_line)" ]; then
+    # shellcheck disable=SC2086
+    git add -- $local_paths_line
+    git commit -m "Update skills from upstream"
+  else
+    echo "Already up to date."
   fi
-  echo "All sources updated."
 }
 
-main "$@"
+main
