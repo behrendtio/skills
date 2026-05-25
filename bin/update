@@ -12,6 +12,7 @@ SOURCES=(
   "ce-dhh-rails-style|https://github.com/EveryInc/compound-engineering-plugin.git|plugins/compound-engineering/skills/ce-dhh-rails-style|ce-dhh-rails-style"
   "ce-doc-review|https://github.com/EveryInc/compound-engineering-plugin.git|plugins/compound-engineering/skills/ce-doc-review|ce-doc-review"
   "ce-plan|https://github.com/EveryInc/compound-engineering-plugin.git|plugins/compound-engineering/skills/ce-plan|ce-plan"
+  "ce-debug|https://github.com/EveryInc/compound-engineering-plugin.git|plugins/compound-engineering/skills/ce-debug|ce-debug"
   "ce-work|https://github.com/EveryInc/compound-engineering-plugin.git|plugins/compound-engineering/skills/ce-work|ce-work"
   "codex-review|https://github.com/steipete/agent-scripts.git|skills/codex-review|codex-review"
   "frontend-design|https://github.com/anthropics/skills.git|skills/frontend-design|frontend-design"
