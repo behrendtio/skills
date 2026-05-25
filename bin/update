@@ -148,9 +148,7 @@ main() {
 
   # shellcheck disable=SC2086
   if [ -n "$(git status --porcelain -- $local_paths_line)" ]; then
-    # shellcheck disable=SC2086
-    git add -- $local_paths_line
-    git commit -m "Update skills from upstream"
+    echo "Skills updated. Working tree has changes ready to commit."
   else
     echo "Already up to date."
   fi
