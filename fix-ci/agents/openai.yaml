@@ -1,0 +1,7 @@
+interface:
+  display_name: "Fix CI"
+  short_description: "Run local CI, fix failures, review, push"
+  default_prompt: "Use $fix-ci to run the current branch CI locally, fix failures, review, and push."
+
+policy:
+  allow_implicit_invocation: false
