@@ -1,0 +1,6 @@
+interface:
+  display_name: "Orient"
+  short_description: "Map context before starting work"
+  default_prompt: "Use $orient to orient around this topic before taking any action."
+policy:
+  allow_implicit_invocation: false
