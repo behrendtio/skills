@@ -10,6 +10,8 @@ ce-work	https://github.com/EveryInc/compound-engineering-plugin.git	plugins/comp
 autoreview	https://github.com/openclaw/agent-skills.git	skills/autoreview	autoreview
 frontend-design	https://github.com/anthropics/skills.git	skills/frontend-design	frontend-design
 git-commit	https://github.com/github/awesome-copilot.git	skills/git-commit	git-commit
+postgresql-optimization	https://github.com/github/awesome-copilot.git	skills/postgresql-optimization	postgresql-optimization
+refactor	https://github.com/github/awesome-copilot.git	skills/refactor	refactor
 swiftui-liquid-glass	https://github.com/Dimillian/Skills.git	swiftui-liquid-glass	swiftui-liquid-glass
 swiftui-ui-patterns	https://github.com/Dimillian/Skills.git	swiftui-ui-patterns	swiftui-ui-patterns
 upgrading-expo	https://github.com/expo/skills.git	plugins/expo/skills/upgrading-expo	upgrading-expo
