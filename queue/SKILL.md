@@ -1,13 +1,13 @@
 ---
 name: queue
-description: Manual-only prompt-readiness gate that checks whether a user's prompt is clear enough to act on before any work begins. Use only when the user explicitly invokes $queue by name; never trigger this skill automatically or implicitly. Respond with only a yes/no readiness decision and any required numbered follow-up questions instead of implementation, research, planning, file edits, or tool use.
+description: Manual-only prompt-readiness gate that checks whether a user's prompt is clear enough to act on before any work begins. Use only when the user explicitly invokes $queue by name; never trigger this skill automatically or implicitly. Respond by briefly playing back the task as understood, then give a clear yes/no understood decision and any required numbered follow-up questions instead of implementation, research, planning, file edits, or tool use.
 ---
 
 # Queue
 
 ## Overview
 
-Use this skill as a manual prompt-readiness gate. Decide whether the request is sufficiently clear to start work, then respond only with the required yes/no format and any necessary follow-up questions.
+Use this skill as a manual prompt-readiness gate. Decide whether the request is sufficiently clear to start work, then respond only with a concise playback of the task, a yes/no understood decision, and any necessary follow-up questions.
 
 Only use this skill when the user explicitly mentions `$queue`. Do not infer that this skill should run from ordinary ambiguity, clarification needs, planning requests, or similar wording.
 
@@ -17,14 +17,14 @@ Only use this skill when the user explicitly mentions `$queue`. Do not infer tha
 - Do not start the requested work.
 - Do not edit files, run commands, browse, inspect repositories, create plans, or call tools.
 - Do not answer the underlying task.
-- Do not provide implementation details, suggestions, summaries, or analysis unless they are necessary to phrase a follow-up question.
+- Do not provide implementation details, suggestions, summaries, or analysis beyond the task playback and any necessary follow-up questions.
 - Do not ask follow-up questions when a reasonable assumption would make the request clear enough and the assumption is low-risk.
 
 ## Decision Rule
 
-Answer `Yes` when the prompt provides enough information for Codex to begin work responsibly. Minor missing details are acceptable when Codex can make conventional assumptions without changing the likely outcome.
+Answer `Understood: Yes` when the prompt provides enough information for Codex to begin work responsibly. Minor missing details are acceptable when Codex can make conventional assumptions without changing the likely outcome.
 
-Answer `No` when the prompt is blocked by missing, contradictory, or high-impact information. Ask only for details that materially affect what Codex should do next.
+Answer `Understood: No` when the prompt is blocked by missing, contradictory, or high-impact information. Ask only for details that materially affect what Codex should do next.
 
 Treat these as common reasons to answer `No`:
 
@@ -40,14 +40,16 @@ Treat these as common reasons to answer `No`:
 When the prompt is clear enough:
 
 ```text
-Yes
+Task: Briefly restate the task you believe the user is asking for.
+Understood: Yes
 Follow-up questions: No
 ```
 
 When follow-up questions are needed:
 
 ```text
-No
+Task: Briefly restate the task you believe the user is asking for, including any ambiguity if relevant.
+Understood: No
 Follow-up questions: Yes
 1. First necessary question?
 2. Second necessary question?
@@ -60,14 +62,15 @@ Follow-up questions: Yes
 - Number questions starting at `1.`.
 - Make each question concrete and answerable.
 - Do not include optional curiosity questions.
-- Do not include a preamble or closing note.
+- Do not include a preamble, closing note, or any sections beyond `Task`, `Understood`, and `Follow-up questions`.
 
 ## Examples
 
 User asks: "Refactor the auth code."
 
 ```text
-No
+Task: Refactor the auth code.
+Understood: No
 Follow-up questions: Yes
 1. Which repository, app, or files contain the auth code you want refactored?
 2. What outcome should the refactor optimize for: readability, testability, performance, bug fixes, or a specific behavior change?
@@ -76,6 +79,7 @@ Follow-up questions: Yes
 User asks: "In the current repo, rename the Calendar tab to Tasks everywhere and update tests."
 
 ```text
-Yes
+Task: Rename the Calendar tab to Tasks throughout the current repository and update the related tests.
+Understood: Yes
 Follow-up questions: No
 ```
