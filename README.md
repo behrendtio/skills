@@ -6,14 +6,14 @@ A curated collection of agent skills sourced from upstream repositories, maintai
 
 Skills are discovered automatically by opencode and Codex via `**/*.md` glob patterns from the skills directory.
 
-### Upstream skills (git subtrees)
+### Upstream skills
 
 | Skill | Source |
 |---|---|
 | `ce-brainstorm` | [compound-engineering-plugin](https://github.com/EveryInc/compound-engineering-plugin) |
 | `ce-code-review` | [compound-engineering-plugin](https://github.com/EveryInc/compound-engineering-plugin) |
 | `ce-compound` | [compound-engineering-plugin](https://github.com/EveryInc/compound-engineering-plugin) |
-| `ce-dhh-rails-style` | [compound-engineering-plugin](https://github.com/EveryInc/compound-engineering-plugin) |
+| `ce-debug` | [compound-engineering-plugin](https://github.com/EveryInc/compound-engineering-plugin) |
 | `ce-doc-review` | [compound-engineering-plugin](https://github.com/EveryInc/compound-engineering-plugin) |
 | `ce-plan` | [compound-engineering-plugin](https://github.com/EveryInc/compound-engineering-plugin) |
 | `ce-work` | [compound-engineering-plugin](https://github.com/EveryInc/compound-engineering-plugin) |
@@ -27,6 +27,7 @@ Skills are discovered automatically by opencode and Codex via `**/*.md` glob pat
 
 | Skill | Description |
 |---|---|
+| `ce-dhh-rails-style` | Legacy Rails style skill retained locally; not currently published as a top-level skill by compound-engineering-plugin |
 | `git-commit-and-push` | Commits changes with a conventional commit message, pulls from origin to reconcile the branch, resolves safe merge conflicts, and pushes to origin |
 | `playwright` | Automates real browsers from the terminal — navigation, form filling, snapshots, screenshots, data extraction, and UI-flow debugging via a bundled CLI wrapper script |
 
@@ -46,14 +47,16 @@ Both opencode and Codex discover skills automatically from this location.
 
 ```bash
 bin/update
+bin/update --dry-run ce-plan
+bin/update ce-brainstorm ce-code-review ce-compound ce-doc-review ce-plan ce-debug ce-work
 ```
 
-This pulls the latest version of every upstream skill via `git subtree`. Each skill is extracted from its source repository and merged independently, preserving the flat directory structure.
+This pulls the latest version of every upstream-managed skill listed in `sources.tsv`. You can pass one or more skill IDs to update only those skills.
 
 The script will:
 1. Clone each upstream repo to a temporary directory
-2. Extract only the relevant skill subdirectory via `git subtree split`
-3. Pull changes into the local skill folder
+2. Validate each configured source subdirectory
+3. Copy the source subdirectory into the local skill folder
 4. Clean up temporary files
 
 Run it whenever you want to sync with upstream changes.
@@ -62,7 +65,7 @@ Run it whenever you want to sync with upstream changes.
 
 ### From an upstream repository
 
-1. Add one entry to `SOURCES` in `bin/update`
+1. Add one entry to `sources.tsv`
 2. Run `bin/update --dry-run <skill-id>` to verify the configured source
 3. Run `bin/update <skill-id>` to pull it in
 
@@ -85,5 +88,5 @@ Local skills are not managed by `bin/update` and will never be overwritten by up
 ## Structure
 
 All skills live at the repository root. Each skill is either:
-- A **git subtree** (managed by `bin/update`, synced from upstream)
+- An **upstream-managed skill** (listed in `sources.tsv`, synced by `bin/update`)
 - A **local skill** (committed directly, not synced)

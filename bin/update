@@ -4,21 +4,81 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 SOURCES_FILE="${SKILL_UPDATE_SOURCES:-$REPO_ROOT/sources.tsv}"
+DRY_RUN=0
+SELECTED_IDS=()
 
 die() {
   echo "Error: $*" >&2
   exit 1
 }
 
-require_clean_worktree() {
+usage() {
+  cat <<'USAGE'
+Usage: bin/update [--dry-run] [skill-id ...]
+
+Sync upstream-managed skills from sources.tsv.
+
+Options:
+  --dry-run    Clone upstream repositories and validate configured source paths,
+               but do not modify local skill directories.
+  -h, --help   Show this help.
+USAGE
+}
+
+parse_args() {
+  local arg
+
+  while [ "$#" -gt 0 ]; do
+    arg="$1"
+    shift
+
+    case "$arg" in
+      --dry-run)
+        DRY_RUN=1
+        ;;
+      -h|--help)
+        usage
+        exit 0
+        ;;
+      -*)
+        die "unknown option: $arg"
+        ;;
+      *)
+        SELECTED_IDS+=("$arg")
+        ;;
+    esac
+  done
+}
+
+id_selected() {
+  local candidate
+  local selected
+  candidate="$1"
+
+  if [ "${#SELECTED_IDS[@]}" -eq 0 ]; then
+    return 0
+  fi
+
+  for selected in "${SELECTED_IDS[@]}"; do
+    if [ "$selected" = "$candidate" ]; then
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+require_clean_paths() {
+  local status
+
   cd "$REPO_ROOT"
 
-  local sources_rel
-  sources_rel="${SOURCES_FILE#$REPO_ROOT/}"
+  [ "$#" -gt 0 ] || die "no local paths selected"
 
-  if ! git diff --quiet -- . ':!'"$sources_rel" ':!'"bin/update" 2>/dev/null || \
-     ! git diff --cached --quiet -- . ':!'"$sources_rel" ':!'"bin/update" 2>/dev/null; then
-    die "working tree has uncommitted changes. Commit or stash them first."
+  status=$(git status --porcelain -- "$@")
+  if [ -n "$status" ]; then
+    echo "$status" >&2
+    die "selected skill paths have uncommitted changes. Commit or stash them first."
   fi
 }
 
@@ -58,6 +118,35 @@ validate_rows() {
     esac
     seen_locals="${seen_locals}${local}|"
   done <<< "$rows"
+}
+
+filter_rows() {
+  local rows
+  local matched_ids
+  local id
+  local repo
+  local source
+  local local
+  local selected
+
+  rows="$1"
+  matched_ids="|"
+
+  while IFS=$'\t' read -r id repo source local; do
+    if id_selected "$id"; then
+      echo "$id"$'\t'"$repo"$'\t'"$source"$'\t'"$local"
+      matched_ids="${matched_ids}${id}|"
+    fi
+  done <<< "$rows"
+
+  if [ "${#SELECTED_IDS[@]}" -gt 0 ]; then
+    for selected in "${SELECTED_IDS[@]}"; do
+      case "$matched_ids" in
+        *"|$selected|"*) ;;
+        *) die "unknown source id: $selected" ;;
+      esac
+    done
+  fi
 }
 
 unique_repos() {
@@ -114,9 +203,13 @@ update_repo() {
     fi
 
     echo "=== $id ==="
-    mkdir -p "$REPO_ROOT/$local"
-    rsync -a --delete --exclude='.git' "$temp_dir/$source/" "$REPO_ROOT/$local/"
-    echo "Done."
+    if [ "$DRY_RUN" -eq 1 ]; then
+      echo "Would sync $source -> $local"
+    else
+      mkdir -p "$REPO_ROOT/$local"
+      rsync -a --delete --exclude='.git' "$temp_dir/$source/" "$REPO_ROOT/$local/"
+      echo "Done."
+    fi
   done <<< "$(rows_for_repo "$repo" "$rows")"
 
   rm -rf "$temp_dir"
@@ -125,29 +218,51 @@ update_repo() {
 
 main() {
   local rows
+  local all_rows
   local repo
   local local_paths
   local local_paths_line
+  local failures
+
+  parse_args "$@"
 
   [ -f "$SOURCES_FILE" ] || die "config file not found: $SOURCES_FILE"
 
-  require_clean_worktree
+  all_rows=$(read_sources) || die "failed to read $SOURCES_FILE"
+  [ -n "$all_rows" ] || die "no sources found in $SOURCES_FILE"
 
-  rows=$(read_sources) || die "failed to read $SOURCES_FILE"
-  [ -n "$rows" ] || die "no sources found in $SOURCES_FILE"
-
-  validate_rows "$rows"
-
-  while IFS= read -r repo; do
-    if ! update_repo "$repo" "$rows"; then
-      echo "FAILED: $repo" >&2
-    fi
-  done <<< "$(unique_repos "$rows")"
+  validate_rows "$all_rows"
+  rows=$(filter_rows "$all_rows")
+  [ -n "$rows" ] || die "no matching sources selected"
 
   cd "$REPO_ROOT"
 
   local_paths=$(while IFS=$'\t' read -r _ _ _ local; do echo "$local"; done <<< "$rows")
   local_paths_line=$(printf '%s\n' $local_paths | paste -sd ' ' -)
+
+  # shellcheck disable=SC2086
+  if [ "$DRY_RUN" -eq 0 ]; then
+    require_clean_paths $local_paths_line
+  fi
+
+  failures=0
+  while IFS= read -r repo; do
+    if ! update_repo "$repo" "$rows"; then
+      echo "FAILED: $repo" >&2
+      failures=$((failures + 1))
+    fi
+  done <<< "$(unique_repos "$rows")"
+
+  if [ "$failures" -ne 0 ]; then
+    die "$failures upstream repo(s) failed to update"
+  fi
+
+  cd "$REPO_ROOT"
+
+  if [ "$DRY_RUN" -eq 1 ]; then
+    echo "Dry run succeeded."
+    exit 0
+  fi
 
   # shellcheck disable=SC2086
   if [ -n "$(git status --porcelain -- $local_paths_line)" ]; then
@@ -157,4 +272,4 @@ main() {
   fi
 }
 
-main
+main "$@"
