@@ -10,6 +10,12 @@ Find root causes, then fix them. This skill investigates bugs systematically —
 
 <bug_description> #$ARGUMENTS </bug_description>
 
+## Mode
+
+Default is **interactive** — investigate, then use the Phase 2 fix-choice gate and the Phase 4 handoff prompt as written below.
+
+**`mode:pipeline`** (set by an orchestrator such as `ce-babysit-pr` or `lfg`): run fully non-interactively. Strip the `mode:pipeline` token from `<bug_description>` before parsing. **Read `references/pipeline-mode.md` and follow it** — it overrides every "ask the user" point in this skill with a conservative default, replaces the Phase 2 fix-gate with "fix convergent bugs, defer divergent ones," and replaces the Phase 4 prompt with a structured return. Never call the blocking-question tool in pipeline mode.
+
 ## Core Principles
 
 1. **Investigate before fixing.** Do not propose a fix until you can explain the full causal chain from trigger to symptom with no gaps. "Somehow X leads to Y" is a gap.
@@ -36,7 +42,7 @@ Beyond the trivial-bug fast-path in Phase 0, no further phase skipping — compl
 Parse the input and reach a clear problem statement.
 
 **If the input references an issue tracker**, fetch it:
-- GitHub (`#123`, `org/repo#123`, github.com URL): Parse the issue reference from `<bug_description>` and fetch with `gh issue view <number> --json title,body,comments,labels`. For URLs, pass the URL directly to `gh`.
+- GitHub (`#123`, `org/repo#123`, a github.com or GitHub Enterprise issue URL): Parse the issue reference from `<bug_description>` and fetch with `gh issue view <number> --json title,body,comments,labels`. For URLs, pass the URL directly to `gh` (it targets whatever host it is configured for, GHE included).
 - Other trackers (Linear URL/ID, Jira URL/key, any tracker URL): Attempt to fetch using available MCP tools or by fetching the URL content. If the fetch fails — auth, missing tool, non-public page — ask the user to paste the relevant issue content. Ensure the fetch includes the full comment thread, not just the opening description.
 
 Read the full conversation — the original description AND every comment, with particular attention to the latest ones. Comments frequently contain updated reproduction steps, narrowed scope, prior failed attempts, additional stack traces, or a pivot to a different suspected root cause; treating the opening post as the whole picture often sends the investigation in the wrong direction. Extract reported symptoms, expected behavior, reproduction steps, and environment details from the combined thread. Then proceed to Phase 1.
@@ -66,7 +72,14 @@ Confirm the bug exists and understand its behavior. Run the test, trigger the er
 - **Manual setup required:** If reproduction needs specific conditions the agent cannot create alone (data states, user roles, external services, environment config), document the exact setup steps and guide the user through them. Clear step-by-step instructions save significant time even when the process is fully manual.
 - **Does not reproduce after 2-3 attempts:** Read `references/investigation-techniques.md` for intermittent-bug techniques.
 - **Cannot reproduce at all in this environment:** Document what was tried and what conditions appear to be missing.
-- **Writing the reproduction test:** If the project has testing-conventions guidance — a dedicated testing skill, an `AGENTS.md`/`CLAUDE.md` testing section, or a clear style across existing tests — apply it when authoring the failing test. Otherwise write a minimal isolated test that fails on the current bug and passes once the corrected behavior lands; name it descriptively so the failure message itself explains the bug.
+- **Writing the reproduction test:** Orient on the project's testing conventions before authoring the failing test. Resolve them from the shared repo-grounding cache first — set `SKILL_DIR` to this skill's directory and run the helper (full protocol in `references/repo-profile-cache.md`):
+
+  ```bash
+  SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>";
+  python3 "$SKILL_DIR/scripts/repo-profile-cache.py" get
+  ```
+
+  On `HIT`, use the cached profile's `conventions.testing` field as the testing-convention orientation — do not re-read the *root* instruction files for it. (If the bug lives under a subdirectory with its own scoped `AGENTS.md`/`CLAUDE.md` testing rules, still read those fresh — subdirectory-scoped instructions are excluded from the cache.) **But if that field is empty or null** (the profile recorded no explicit testing guidance), still fall back to the inline check below — in particular, look for a clear style across the project's existing tests. On `MISS` or `NO-CACHE` (or any error), fall back to deriving it inline as today: if the project has testing-conventions guidance — a dedicated testing skill, an `AGENTS.md`/`CLAUDE.md` testing section, or a clear style across existing tests — apply it. The cache is purely an orientation convenience here; never block on it, and do not derive or persist a full profile just for this lookup. Either way, inspect existing tests before adding coverage: use an existing failing test when it already captures the bug, update an existing test when it owns the contract but has the wrong expectation, strengthen an over-mocked test when it should have caught the bug, or add a new minimal isolated test only when no existing test is the right home. The chosen test must fail on the current bug and pass once the corrected behavior lands; name it descriptively so the failure message itself explains the bug.
 
 #### 1.2 Verify environment sanity
 
@@ -157,11 +170,13 @@ Before forming a new hypothesis, review what has already been ruled out and why.
 Once the root cause is confirmed, present:
 - The root cause (causal chain summary with file:line references)
 - The proposed fix and which files would change
-- Which tests to add or modify to prevent recurrence (specific test file, test case description, what the assertion should verify)
+- Which tests to use, add, modify, or strengthen to prevent recurrence (specific test file, test case description, what the assertion should verify)
 - Whether existing tests should have caught this and why they did not
 - Any related ticket or PR surfaced in Phase 1.4 — an open duplicate, an existing fix on another branch or open PR, a regression's original fix, or a prior merged attempt that failed — and how it shapes the recommendation. If an open PR already fixes this, lead with that link instead of a fresh fix; if a prior merged attempt took the same approach you were about to, say so and explain what that rules out.
 
 Then offer next steps.
+
+**`mode:pipeline`:** do not ask. The caller invoked this skill to fix, so proceed to Phase 3 and apply a **convergent** fix; a **divergent** fix (one that would reverse a deliberate contract/behavior/product decision — including a "failing" test that asserts intended behavior) is deferred, not applied, per `references/pipeline-mode.md`. Never route to `/ce-brainstorm` in pipeline mode — a design problem becomes a `needs-human` residual.
 
 Use the platform's blocking question tool (`AskUserQuestion` in Claude Code, `request_user_input` in Codex, `ask_question` in Antigravity CLI (`agy`), `ask_user` in Pi (requires the `pi-ask-user` extension)). In Claude Code, call `ToolSearch` with `select:AskUserQuestion` first if its schema isn't loaded — a pending schema load is not a reason to fall back. Fall back to numbered options in chat only when no blocking tool exists in the harness or the call errors (e.g., Codex edit modes). Never silently skip the question.
 
@@ -208,14 +223,16 @@ If the user chose "Diagnosis only" at the end of Phase 2, skip this phase and go
 
 - Check for uncommitted changes (`git status`). If the user has unstaged work in files that need modification, confirm before editing — do not overwrite in-progress changes.
 - If the current branch is the default branch, ask whether to create a feature branch first using the platform's blocking question tool (see Phase 2 for the per-platform names). To detect the default branch, compare against `main`, `master`, or the value of `git rev-parse --abbrev-ref origin/HEAD` with its `origin/` prefix stripped (the raw output is `origin/<name>`, so an unstripped comparison will never match the local branch name). Default to creating one; derive a name from the bug and run `git checkout -b <name>`. On any other branch, proceed.
+- Record the pre-fix scope before editing: current `HEAD`, whether `git status --short` is clean, and any pre-existing changed files. During Phase 3, keep a list of fix-owned files (the tests and implementation files changed for this bug). Phase 4 uses this to keep simplify/review from touching unrelated branch work.
 
 **Test-first:**
-1. Write a failing test that captures the bug (or use the existing failing test)
-2. Verify it fails for the right reason — the root cause, not unrelated setup
-3. Implement the minimal fix — address the root cause and nothing else. Do not bundle drive-by refactors, formatting, or unrelated cleanup into a bug-fix change; those belong in separate commits.
-4. Verify the test passes
-5. Run the broader test suite for regressions
-6. Self-review the diff before declaring the fix done: read every changed line and check for style violations, missed edge cases, regressions in adjacent behavior, and missing test coverage for the fix. For non-trivial fixes (multiple files, risky surface area), also run the harness's lightweight review tool (e.g., `/review` in Claude Code; the equivalent in other harnesses) — not the full `ce-code-review` multi-agent flow, which is PR-tier and over-sized for a single bug fix.
+1. Inspect existing tests for the affected behavior before adding coverage.
+2. Choose the right regression home: use an existing failing test, update an existing test that owns the contract but has the wrong expectation, narrowly strengthen an over-mocked test that should have caught the bug, or add a new focused test when no existing test fits.
+3. Verify the chosen test fails for the right reason — the root cause, not unrelated setup.
+4. Implement the minimal fix — address the root cause and nothing else. Do not bundle drive-by refactors, formatting, or unrelated cleanup into a bug-fix change; those belong in separate commits.
+5. Verify the test passes.
+6. Run the broader test suite for regressions.
+7. Self-review the diff before declaring the root-cause fix done: read every changed line and check for style violations, missed edge cases, regressions in adjacent behavior, and missing test coverage for the fix. Do not run the broader polish/review/PR tail here; Phase 4 owns it after the debug summary so the user can see the root-cause result before shipping work begins.
 
 **On a failed fix:** return to Phase 2 and *explicitly invalidate the current hypothesis* before forming a new one. State out loud what evidence ruled out the prior hypothesis, then form a new one with its own grounding observation and prediction. Do not retry variants of the same theory ("maybe it was the other branch", "let me also catch this case") — that is the rationalization spiral, not iteration.
 
@@ -229,6 +246,8 @@ Analyze how this was introduced and what allowed it to survive. Note any systemi
 ---
 
 ### Phase 4: Handoff
+
+**`mode:pipeline` — skip this entire interactive handoff.** Do not run the polish/review tail, do not ask about residuals, do not show the branch menu, do not offer learning capture. Instead: commit and push the convergent fix (per `references/pipeline-mode.md`), then emit that reference's **structured return** as the skill's final output. Divergent / needs-human items are deferred there (open thread or the caller's run-report comment — never a PR-body section), not prompted. The rest of this section is the interactive path only.
 
 **Structured summary** — always write this first:
 
@@ -246,6 +265,33 @@ Analyze how this was introduced and what allowed it to survive. Note any systemi
 
 **If Phase 3 ran**, the next move depends on whether the skill created the branch in Phase 3.
 
+#### Post-fix polish/review tail (before commit or PR)
+
+Run this tail after Phase 3 ran and before the branch-based commit/PR handoff. The goal is to leave the fix PR-ready, not merely locally green.
+
+**Contextual overrides first.** Look at the user's original prompt, loaded memories, and the project's active instructions already in your context for preferences that conflict with automatic post-fix polish or review — for example, "minimal hotfix only", "do not run review", "always ask before cleanup", or "ship the smallest possible diff." A signal must be explicit or clearly applicable. Honor it and state what was skipped.
+
+**Skip the tail only with a reason.** Skip dedicated simplify/review when the fix is purely mechanical or trivial: typo/import-only, formatting/lint-only, dependency/version-only, generated artifacts, docs-only, or roughly under 10 changed lines with no sensitive surface. Still keep the Phase 3 tests and self-review. If skipping, carry the skip reason into the handoff summary.
+
+**Simplify before review when useful.** Invoke `/ce-simplify-code` before code review when the current fix diff is non-mechanical and large enough to benefit (default: >=30 changed lines), touches multiple implementation files, introduces a new helper/abstraction, or affects shared/risky surfaces such as auth/authz, public contracts, persistence, concurrency, background jobs, or external services. Use the branch diff only when the branch is skill-owned or clearly contains only this fix. On a pre-existing branch, scope simplification to fix-owned files only when those files were clean before Phase 3. If a fix-owned file already had pre-existing user edits, skip `/ce-simplify-code` for that file and record `Simplify: skipped for overlapping pre-existing edits`; file-level simplification could rewrite unrelated hunks the user did not authorize. Do not let simplification widen into unrelated user work.
+
+**Review the final fix scope.** After simplification (or after the skip decision), review every non-mechanical fix unless review tooling is unavailable. Run default `/ce-code-review` only when its diff scope is known to be this fix: the branch was created by this skill, or the pre-fix tree was clean and you can pass `base:<pre-fix-HEAD>`. Do not run default `/ce-code-review` on a pre-existing dirty branch or a branch with unrelated committed work; standalone review uses the branch/worktree diff and may apply fixes outside the bug scope. In that case, run the harness's lightweight review tool only if it accepts an explicit file scope; otherwise perform an explicit manual review of the fix-owned files and record `Code review: targeted manual due to unrelated branch work`. If `/ce-code-review` is unavailable on an otherwise fix-only scope, fall back to the harness's lightweight review tool when available; otherwise do one explicit manual diff scan and state that dedicated review was unavailable.
+
+**Handle residual findings before shipping.** Inspect the review's Actionable Findings. Do not auto-open a PR with unresolved P0/P1 findings, or with findings whose fix needs a product/design decision. Ask the user whether to fix now, accept/defer durably, or stop. For lower-severity residuals the user accepts, preserve them before any outward handoff: if a PR will be opened, pass them as "Known Residuals" context to `/ce-commit-push-pr`; if the user chooses commit-only or stop, create `docs/residual-review-findings/<branch-or-head-sha>.md` with the accepted findings and source review context, stage it with the fix when committing, and mention the file path in the final summary. Accepted residuals must not live only in the session.
+
+**Re-verify after tail edits.** If simplification or review changed code, rerun the bug's regression test and any targeted checks the tail identified. Never proceed to commit or PR with a red tree.
+
+**Post-fix quality summary.** After the tail, append this block below the Debug Summary before the commit/PR decision:
+
+```
+## Post-Fix Quality
+**Scope**: [fix-only branch / base:<pre-fix-HEAD> / fix-owned files only / targeted manual due to unrelated branch work]
+**Simplify**: [ran/skipped + reason]
+**Review**: [ran/skipped/manual + outcome]
+**Residuals**: [none / accepted Known Residuals for PR / accepted residuals written to docs/residual-review-findings/<branch-or-head-sha>.md / blocked pending user decision]
+**Re-verification**: [checks rerun after tail edits]
+```
+
 #### Skill-owned branch (created in Phase 3): default to commit-and-PR without prompting
 
 1. **Check for contextual overrides first.** Look at the user's original prompt, loaded memories, and the project's active instructions already in your context for preferences that conflict with auto commit-and-PR — for example, "always review before pushing", "open PRs as drafts", or "don't open PRs from skills". A signal must be an explicit instruction or a clearly applicable rule, not a vague tonal cue. If any apply, honor them — switch to the pre-existing-branch menu below, or skip the PR step entirely, whichever matches the user's stated preference.
@@ -258,7 +304,7 @@ Use the platform's blocking question tool (`AskUserQuestion` in Claude Code, `re
 
 Options:
 
-1. **Commit and open a PR (`/ce-commit-push-pr`)** — default for most cases
+1. **Open a PR with the reviewed fix (`/ce-commit-push-pr`)** — default for most cases
 2. **Commit the fix (`/ce-commit`)** — local commit only
 3. **Stop here** — user takes it from there
 
