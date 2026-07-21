@@ -1,20 +1,30 @@
 # Discovery Review Contract
 
-Perform a high-recall review of the complete current change. Review read-only and finish the full finding set before any fixes begin.
+Perform a high-recall review of the complete current change. Review read-only and finish the full finding set before any fixes begin. Record qualifying issues broadly, but label scope separately: a valid finding is not automatically authorized work. Only findings that pass the close-out scope acceptance test may be fixed.
 
 ## Finding threshold
 
 Report every issue the author would likely fix if they understood it. Report nothing when no such issue exists.
 
-A qualifying finding must be:
+A qualifying review finding must be:
 
-1. Introduced or exposed by the current change rather than merely pre-existing.
+1. Introduced by the current change, or concretely exposed by it and therefore worth reporting; exposure alone never authorizes a fix.
 2. Discrete, concrete, and actionable.
 3. Demonstrably harmful to correctness, security, performance, operability, compatibility, accessibility, or maintainability at the repository's existing quality bar.
 4. Supported by a specific affected scenario, input, environment, state transition, caller, or contract.
 5. Clearly unintended, without relying on guesses about product intent.
 
 Do not report trivial style, vague hardening, speculative interactions, broad rewrites, or issues whose alleged downstream effect cannot be identified.
+
+## Scope classification
+
+After recording a valid finding, classify it against the frozen scope ledger. Accept it for repair only when all three are proven:
+
+1. The current implementation introduced the defect; a merely exposed or pre-existing defect fails this condition.
+2. The defect affects an explicitly scoped behavior or prevents that implementation from working correctly.
+3. The smallest correct repair remains inside the recorded implementation owner boundary without changing unrelated behavior.
+
+A changed file, adjacent caller, shared abstraction, repeated pattern, or severe priority does not independently establish scope. When any condition is false or uncertain, mark the finding rejected, follow-up, or stop-and-escalate; do not edit for it.
 
 ## Review method
 
@@ -47,6 +57,7 @@ Record one entry per unique issue:
 - Scenario: the exact conditions required to trigger the problem.
 - Impact: what becomes incorrect, unsafe, broken, or materially harder to maintain.
 - Evidence: the relevant code path or contract that makes the impact demonstrable.
-- Fix boundary: the smallest ownership boundary in which the bug class can be corrected.
+- Scope status: accepted in-scope, rejected, follow-up, or stop-and-escalate, with the scope-ledger behavior that justifies the classification.
+- Fix boundary: for accepted findings only, the smallest ownership boundary in which the scoped introduced instance can be corrected.
 
-Keep each finding concise and matter-of-fact. Do not duplicate one root cause across multiple comments unless independently fixing one site would leave other introduced failures.
+Keep each finding concise and matter-of-fact. Do not duplicate one root cause across multiple comments unless independently fixing one site would leave other introduced failures within the frozen scope ledger. Do not turn repeated out-of-scope instances into authorized work.

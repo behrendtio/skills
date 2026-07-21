@@ -1,6 +1,6 @@
 interface:
   display_name: "Close Out"
-  short_description: "Review, fix, test, commit, and push until clean"
-  default_prompt: "Use $close-out to review this change, fix and test each complete finding batch, commit and push every fix round, and finish with Codex-only autoreview until the unchanged branch diff is clean."
+  short_description: "Close out only the ticket-scoped implementation"
+  default_prompt: "Use $close-out to freeze the ticket-derived scope, review the complete change, fix only findings proven to be introduced by and required for that scope, test each complete finding batch, commit and push every fix round, and finish with Codex-only autoreview until the unchanged branch diff is clean."
 policy:
   allow_implicit_invocation: false
