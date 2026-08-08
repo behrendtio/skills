@@ -28,13 +28,17 @@ Execute this workflow to create one safe conventional commit, reconcile the curr
 - Run `git remote get-url origin`.
 - If `origin` does not exist, stop and ask the user which remote to use.
 
-5. Pull the current branch from origin.
-- Run `git pull origin <branch>` after the local commit exists.
-- If the pull completes cleanly, continue to the push step.
-- If Git reports merge conflicts, inspect each conflict and resolve only when the intended resolution is clear from the committed local changes, incoming changes, tests, and surrounding code.
-- If any conflict is ambiguous, high-risk, or requires product/domain judgment, stop and ask the user how to resolve it. Include the conflicted file paths, the competing local/incoming changes, and the specific decision needed.
-- After resolving conflicts, run `git status --porcelain` and commit the merge resolution if Git requires it.
-- If the pull fails for reasons other than merge conflicts, stop and report the exact git error with next-step options.
+5. Pull the current branch from origin (only when it already exists remotely).
+- After the local commit exists, check whether the remote branch is present:
+  - `git ls-remote --exit-code --heads origin <branch>`
+- If that succeeds (remote branch exists), run `git pull origin <branch>`.
+  - If the pull completes cleanly, continue to the push step.
+  - If Git reports merge conflicts, inspect each conflict and resolve only when the intended resolution is clear from the committed local changes, incoming changes, tests, and surrounding code.
+  - If any conflict is ambiguous, high-risk, or requires product/domain judgment, stop and ask the user how to resolve it. Include the conflicted file paths, the competing local/incoming changes, and the specific decision needed.
+  - After resolving conflicts, run `git status --porcelain` and commit the merge resolution if Git requires it.
+  - If the pull fails for reasons other than merge conflicts, stop and report the exact git error with next-step options.
+- If the remote branch does not exist yet (e.g. `ls-remote` exits non-zero / "couldn't find remote ref"), **skip the pull** and continue to the push step. First push will create the remote branch via `git push -u origin <branch>`.
+- Do not invent a remote history, fetch unrelated branches, or force-create tracking refs to make pull succeed.
 
 6. Push to origin.
 - Push the current branch with `git push -u origin <branch>`.
@@ -45,6 +49,7 @@ Execute this workflow to create one safe conventional commit, reconcile the curr
 - Never use `--force` or `--force-with-lease` unless the user explicitly asks.
 - Never use `--no-verify` unless the user explicitly asks.
 - Never push if commit creation failed.
+- If the current branch has never been pushed, skip pull and create the remote branch with `git push -u origin <branch>`.
 - Never push while the worktree has unresolved merge conflicts.
 - Never guess on conflict resolution. Resolve clear mechanical conflicts directly, but ask the user before choosing between competing behaviors or unclear intent.
 - If push is rejected (non-fast-forward, auth, protected branch, hooks), stop and report the exact git error with next-step options.
