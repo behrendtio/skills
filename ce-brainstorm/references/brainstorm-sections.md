@@ -25,7 +25,7 @@ Sections earn their place by serving one of these audiences. Omit padding.
 New `ce-brainstorm` outputs live under `<root>/plans/` and use the unified plan
 artifact contract:
 
-- **Path:** `<root>/plans/YYYY-MM-DD-NNN-<type>-<topic>-plan.<md|html>`.
+- **Path:** `<root>/plans/YYYY-MM-DD-HHMM-<type>-<topic>-plan.<md|html>` (local wall-clock write time; no daily sequence number). Reserve the path atomically; on collision, retry with the smallest available numeric suffix before the extension rather than overwriting.
 - **`artifact_contract: ce-unified-plan/v1`**.
 - **`artifact_readiness: requirements-only`**.
 - **`product_contract_source: ce-brainstorm`**.
@@ -37,10 +37,17 @@ artifact contract:
 A requirements-only unified plan is kept **light and standalone-readable**. It
 includes:
 
-- `## Goal Capsule` with objective, product authority, and open blockers. When
-  the coherent-work gate split a broader request, the objective names the
-  current area and product authority says the surrounding areas are not active
-  scope.
+- `## Goal Capsule` with objective, product authority, and open blockers. The
+  objective is always the outcome — what is true for users or operators
+  afterwards, phrased so it would still read as the goal under a different
+  implementation. It sits outside the component being changed: if a reader
+  who does not know that component's internals could not tell whether the
+  objective was met, it is stated at the component's altitude and the real
+  objective is whatever depended on it. When the seed supplies an approach ("move X to Y"), that is
+  the **Means** (its own line) and the objective is the outcome it serves,
+  surfaced in the dialogue rather than assumed. When the coherent-work gate split a broader request, the objective
+  names the current area and product authority says the surrounding areas are
+  not active scope.
 - `## Product Contract` containing the brainstorm sections below.
 
 Do **not** emit a `## Goal Launch Block` or `## Reader Index`: the launch prompt
@@ -57,19 +64,13 @@ inputs. Do not migrate or rewrite them when creating new artifacts.
 
 ## Decide whether a doc is warranted at all
 
-Brainstorm dialogue does not always need to produce a durable document.
-Skip document creation when **both** hold:
-
-- The user only needs brief alignment — no exploration produced novel scope,
-  framing, or decisions worth preserving in IDed shape.
-- Any durable decisions made during the dialogue can flow naturally to
-  downstream artifacts (`ce-plan`, the commit message, `<root>/solutions/`)
-  without a brainstorm doc as an intermediary.
-
-The trigger for creating a doc is when the dialogue surfaced enough
-structural decisions, scope boundaries, or acceptance criteria that
-downstream consumers (planner, reviewer, future reader) need them in a
-durable, IDed form — not just as conversational artifacts.
+A brainstorm ends in chat unless a file is earned. A file is earned when the
+dialogue surfaced structural decisions, scope boundaries, or acceptance
+criteria that downstream consumers (planner, reviewer, future reader) need in
+IDed form, or when the user asks for one. Decisions that flow naturally to
+downstream artifacts (`ce-plan`'s prompt, the commit message,
+`<root>/solutions/`) do not earn a file; `phase-0.md` 0.3 states the
+Lightweight case.
 
 **Stress test:** a brainstorm about a tiny bug fix where the user asks "fix
 this with a null check or with upstream validation?" and the agent confirms
@@ -366,7 +367,9 @@ artifact.
 - **`type`** — conventional-commit-prefix-aligned classification (`feat`,
   `fix`, `refactor`, `docs`, etc.).
 - **`date`** — creation date in ISO 8601 (`YYYY-MM-DD`), ASCII digits only.
-  Used in the filename (`<root>/plans/YYYY-MM-DD-NNN-<type>-<topic>-plan.<md|html>`).
+  Matches the calendar date in the filename
+  (`<root>/plans/YYYY-MM-DD-HHMM-<type>-<topic>-plan.<md|html>`), which adds the
+  local wall-clock time at write.
 - **`topic`** — kebab-case slug identifying the brainstorm subject (e.g.,
   `surface-scope-earlier`, `demo-reel-local-save`). Used in the filename and
   as the resume-detection key when `ce-brainstorm` scans for an existing
