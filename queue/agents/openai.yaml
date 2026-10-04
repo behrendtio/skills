@@ -1,6 +1,0 @@
-interface:
-  display_name: "Queue"
-  short_description: "Manual task playback and prompt check"
-  default_prompt: "Use $queue to play back my task and confirm whether it is clear enough before work begins."
-policy:
-  allow_implicit_invocation: false
